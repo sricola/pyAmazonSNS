@@ -1,16 +1,70 @@
 #!/usr/bin/env python
 
+# python 2.7 only!
 # This python script allows any application to send sns alerts to any topic
 # Make sure you create the topic though!
-# Usage: printf <msg> | sms_notify.py <topic name> <subject>(optional, ignored if sms)
+# Usage: printf <msg> | sms_notify.py --topic=<topic> --sub=<sub>
 
 import boto
 import sys
 import logging
+import time
+import tornado.options
+import subprocess
+import string
+import os
 
-def send_sms(topic,msg,sub):
-    # Enter your credentials here. Use a SNS restricted accout for security :)
-    sns = boto.connect_sns("<ACCESS_KEY>","<AWS_SECRET>")
+
+rate_limit_threshold = 5 #no. of messages
+rate_limit_secs = 60 #in how many secs?
+# To explain the above 2 parameters, rate_limit_threshold messages will be allowed
+# to be sent in rate_limit_secs.
+
+# The following message will be sent when the theshold is reached
+suppress_msg = "**PROBLEM** Passed the notification threshold. There are more problems than has been paged to you. Please check nagios NOW!"
+
+
+def rate_limit(sns, arn, msg, sub):
+
+    curr_time = int(time.time())
+    
+    # get last five alerts sent out
+    time_rate_bash_command = "cat /var/log/nagios/nagios.log | grep " + tornado.options.options.topic + " | awk -F \" \" '{print $1}' | tr -d \"[]\" | tail -n "+ str(rate_limit_threshold)
+    time_rate_bash_output = subprocess.check_output(time_rate_bash_command, shell=True)
+
+    #make sure that 5 alerts actually exist in the logs
+    count = string.count(time_rate_bash_output, "\n")
+        
+    #lock file when threshold has been passed
+    snslock = "/tmp/" + tornado.options.options.topic + ".snslock"
+    
+    #make sure there are actually more than 5 alerts in the log
+    if count >= rate_limit_threshold:
+        #get the 5th from current alert
+        time_rate = int(time_rate_bash_output.split('\n')[0])
+        if curr_time - time_rate > rate_limit_secs:
+            response = sns.publish(arn, msg, sub)
+            logging.info(response)
+            # clear the lock file
+            if os.path.exists(snslock):
+                os.remove(snslock)
+        else:
+            # if lock file exists dont text supress message
+            if os.path.exists(snslock):
+                logging.warn(tornado.options.options.topic + ":" + suppress_msg)
+            else:
+                print sns.publish(arn, suppress_msg, sub)
+                logging.warn(tornado.options.options.topic + ":" + suppress_msg)
+                open(snslock, 'a').close()
+                os.utime(snslock, None)
+    else:
+        logging.info(sns.publish(arn, msg, sub))
+        
+    
+
+def send_sns(topic, msg, sub):
+    # AmazonAccountName: snspublish Credentials are here. This account can only post to SNS, so, if it is ever compromised, just delete the account!
+    sns = boto.connect_sns("AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY")
     
     arn = ""
     for topics in sns.get_all_topics()["ListTopicsResponse"]["ListTopicsResult"]["Topics"]:
@@ -21,29 +75,26 @@ def send_sms(topic,msg,sub):
         logging.error("topic not found!")
         exit(0)
     
-    if "sms" in arn:
-        sub = ""
-    
-    response = sns.publish(arn,msg,sub)
-    print response
+    if tornado.options.options.rate_limit == True:
+        rate_limit(sns, arn, msg, sub)   
+    else:
+        print sns.publish(arn, msg, sub)
     
 if __name__ == "__main__":
     
-    if len(sys.argv) < 2:
-        logging.error("Invalid number of argumennts.Usage: printf <msg> | sms_notify.py <topic name> <subject>(optional, ignored if sms)")
+    tornado.options.define("topic", help="specify the destination topic", default="", type=str)
+    tornado.options.define("sub", help="specify the subject of the message", default="", type=str)
+    tornado.options.define("rate_limit", help="use this to run in rate limited mode", default=False, type=bool)    
+    tornado.options.parse_command_line()
+    
+    if tornado.options.options.topic == "":
+        logging.error("No topic specified")
         exit(0)
     
-    msg=""
+    msg = ""
     
     #message is piped in
     for line in sys.stdin.readlines():
-        msg = msg+"\n"+line
+        msg = msg + "\n" + line
     
-    topic = sys.argv[1]
-
-    if len(sys.argv) == 3:
-        sub = sys.argv[3]
-    else:
-        sub = ""
-    
-    send_sms(topic,msg,sub)
+    send_sns(tornado.options.options.topic, msg, tornado.options.options.sub)
