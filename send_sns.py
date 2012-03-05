@@ -84,11 +84,11 @@ if __name__ == "__main__":
     
     tornado.options.define("topic", help="specify the destination topic", default="", type=str)
     tornado.options.define("sub", help="specify the subject of the message", default="", type=str)
-    tornado.options.define("rate_limit", help="use this to run in rate limited mode", default=False, type=bool)    
+    tornado.options.define("rate_limit", help="use this to run in rate limited mode. DEFAULT=False", default=False, type=bool)    
     tornado.options.parse_command_line()
     
     if tornado.options.options.topic == "":
-        logging.error("No topic specified")
+        logging.error("No topic specified. use --topic or look at --help for more info.")
         exit(0)
     
     msg = ""
