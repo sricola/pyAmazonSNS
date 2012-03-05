@@ -1,1 +1,3 @@
 Used to send Amazon SNS messages
+
+USAGE: printf "hello world!" | send_sns.py --topic=<topic> --sub=<sub>
