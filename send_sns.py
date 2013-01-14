@@ -66,7 +66,7 @@ def send_sns(topic, msg, sub):
     region = boto.regioninfo.RegionInfo(name=tornado.options.options.region, endpoint="sns.%s.amazonaws.com" % (tornado.options.options.region))
  
     # AmazonAccountName: snspublish Credentials are here. This account can only post to SNS, so, if it is ever compromised, just delete the account!
-    sns = boto.connect_sns("AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY")
+    sns = boto.connect_sns("AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY", region=region)
     
     arn = ""
     for topics in sns.get_all_topics()["ListTopicsResponse"]["ListTopicsResult"]["Topics"]:
