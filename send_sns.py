@@ -63,8 +63,10 @@ def rate_limit(sns, arn, msg, sub):
     
 
 def send_sns(topic, msg, sub):
+    region = boto.regioninfo.RegionInfo(name=tornado.options.options.region, endpoint="sns.%s.amazonaws.com" % (tornado.options.options.region))
+ 
     # AmazonAccountName: snspublish Credentials are here. This account can only post to SNS, so, if it is ever compromised, just delete the account!
-    sns = boto.connect_sns("AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY")
+    sns = boto.connect_sns("AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY", region=region)
     
     arn = ""
     for topics in sns.get_all_topics()["ListTopicsResponse"]["ListTopicsResult"]["Topics"]:
@@ -85,6 +87,7 @@ if __name__ == "__main__":
     tornado.options.define("topic", help="specify the destination topic", default="", type=str)
     tornado.options.define("sub", help="specify the subject of the message", default="", type=str)
     tornado.options.define("rate_limit", help="use this to run in rate limited mode. DEFAULT=False", default=False, type=bool)    
+    tornado.options.define("region", help="specify the AWS region to use", default="us-east-1", type=str)
     tornado.options.parse_command_line()
     
     if tornado.options.options.topic == "":
