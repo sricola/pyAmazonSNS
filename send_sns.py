@@ -99,5 +99,10 @@ if __name__ == "__main__":
     #message is piped in
     for line in sys.stdin.readlines():
         msg = msg + "\n" + line
+        
+    #sns will throw a bad argument error for an empty body but is happy with a blank line
+    if msg == "":
+        msg = "\n"
+
     
     send_sns(tornado.options.options.topic, msg, tornado.options.options.sub)
